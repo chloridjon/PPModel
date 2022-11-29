@@ -131,13 +131,12 @@ class model():
         with cf.ThreadPoolExecutor(max_workers=None) as executor:
             results = [executor.submit(ag.move, self.prey, self.pred, t_step) for ag in self.agents]
         """
-        if self.n_prey > 5:
-            P = np.array([self.prey[i].position for i in range(self.n_prey)])
-            V = Voronoi(P)
-        else:
-            V = None
+        prey_positions = np.array([self.prey[i].position for i in range(self.n_prey)])
+        prey_phis = np.array([self.prey[i].phi for i in range(self.n_prey)])
+        pred_positions = np.array([self.prey[i].position for i in range(self.n_pred)])
+        pred_phis = np.array([self.prey[i].phi for i in range(self.n_pred)])
         for ag in self.agents:
-            ag.move(self.prey, self.pred, t_step, voronoi_object = V)
+            ag.move(prey_positions, prey_phis, pred_positions, pred_phis, t_step)
         self.update_agents()
 
     def create_timeseries(self, time, t_step = 0.01):
@@ -225,43 +224,75 @@ class prey(agent):
     prey agent
     """
     def __init__(self, index, position, phi, s, alpha = 0.1, s0 = 5, sigma = 0.02,
-                 con_function = calc.preyprey_force, mu_con = [0.2,5,1.5], a_con = [-0.15,-0.15,-0.15], r_con = [160,20,40], interaction_con = "voronoi",
-                 pred_function = calc.predprey_force, mu_pred = [10,7], a_pred = [-0.15,-0.15], r_pred = [50,70], interaction_pred = "all",):
+                 con_function = calc.preyprey_force, mu_con = [0.2,5,1.5], a_con = [-0.15,-0.15,-0.15], r_con = [160,20,40],
+                 interaction_con = "nnn", n_nearest_con = 5, ran_con = 40,
+                 pred_function = calc.predprey_force, mu_pred = [10,7], a_pred = [-0.15,-0.15], r_pred = [50,70],
+                 interaction_pred = "all", n_nearest_pred = 3, ran_pred = 70):
         super().__init__(index, position, phi, s)
         self.type = "prey"
 
-        #inidvidual parameters #function for calculation of force between preys
+        #inidvidual parameters
         self.alpha = alpha #stubborness
         self.s0 = s0 #prefered speed
         self.sigma = sigma
 
         #conspecific interaction parameters
         self.con_function = con_function
-        self.mu_con = mu_con
+        self.mu_con = np.array(mu_con)
         if type(a_con) == "int" or type(a_con) == "float":
             self.a_con = np.full(3, a_con)
         else:
-            self.a_con = a_con
-        self.r_con = r_con
-        self.interaction_type_con = interaction_con 
+            self.a_con = np.array(a_con)
+        self.r_con = np.array(r_con)
+        if interaction_con == "all":
+            self.int_function_con = calc.all_interactions
+        elif interaction_con == "nnn":
+            self.int_function_con = calc.nnn_interactions
+            self.n_nearest_con = n_nearest_con
+        elif interaction_con == "range":
+            self.int_function_con = calc.range_interactions
+            self.ran_con = ran_con
+        elif interaction_con == "voronoi":
+            self.int_function_con = calc.voronoi_interactions
 
         #predator interaction parameters
         self.pred_function = pred_function
-        self.mu_pred = mu_pred
+        self.mu_pred = np.array(mu_pred)
         if type(a_pred) == "int" or type(a_pred) == "float":
             self.a_pred = np.full(3, a_pred)
         else:
-            self.a_pred = a_pred
-        self.r_pred = r_pred
-        self.interaction_type_pred = interaction_pred
+            self.a_pred =  np.array(a_pred)
+        self.r_pred =  np.array(r_pred)
+        if interaction_pred == "all":
+            self.int_function_pred = calc.all_interactions_pred
+        elif interaction_pred == "nnn":
+            self.int_function_pred = calc.nnn_interactions_pred
+            self.n_nearest_pred = n_nearest_pred
+        elif interaction_con == "range":
+            self.int_function_pred = calc.range_interactions_pred
+            self.ran_pred = ran_pred
+        elif interaction_pred == "voronoi":
+            self.int_function_pred = calc.voronoi_interactions_pred
         self.pred_interaction = False 
 
-    def move(self, preys, preds, t_step, voronoi_object = 0):
+    def move(self, prey_positions, prey_phis, pred_positions, pred_phis, t_step, voronoi_object = 0):
         """
         move agent one timestep
         """
-        force = self.con_function(self, preys, interaction_type = self.interaction_type_con, voronoi_object = voronoi_object) + self.pred_function(self, preys, preds, interaction_type = self.interaction_type_pred)
-        new_r, new_phi, new_s = calc.move_prey(self, t_step, force)
+        #con forces
+        con_interactions = self.int_function_con(self.position, prey_positions)
+        positions_con = np.array([prey_positions[i] for i in con_interactions])
+        phis_con = np.array([prey_phis[i] for i in con_interactions])
+        con_force = self.con_function(self.position, self.phi, positions_con, phis_con, mu_con = self.mu_con.astype("float64"), a_con = self.a_con, r_con = self.r_con)
+
+        #pred forces
+        pred_interactions = self.int_function_con(self.position, pred_positions)
+        positions_pred = np.array([pred_positions[i] for i in pred_interactions])
+        phis_pred = np.array([pred_phis[i] for i in pred_interactions])
+        pred_force = self.pred_function(self.position, self.phi, positions_pred, phis_pred, self.mu_pred.astype("float64"), self.a_pred, self.r_pred)
+
+        new_r, new_phi, new_s = calc.move_prey(force = pred_force + con_force, t_step = t_step,
+                                               position = self.position, phi = self.phi, s = self.s, alpha = self.alpha, s0 = self.s0, sigma = self.sigma)
         self.phi = new_phi
         self.s = new_s
         self.position = new_r

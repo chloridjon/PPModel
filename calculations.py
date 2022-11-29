@@ -3,6 +3,7 @@ import pandas as pd
 from scipy.spatial import Voronoi
 from numba import jit
 from numpy.random import normal
+import time
 
 def mov_avg(array, interval_size = 50):
     sma = pd.Series(array).rolling(interval_size).sum()/interval_size
@@ -56,6 +57,51 @@ def sigmoid(alpha, d, r):
 def length(v):
     L = np.linalg.norm(v)
     return L
+
+@jit(nopython = True, fastmath = True)
+def all_interactions(r_i, positions):
+    """
+    just returns indices
+    """
+    n = len(positions) - 1
+    ag_indices = np.array([i for i in range(n+1) if (positions[i] != r_i).all()])
+    return ag_indices
+
+@jit(nopython = True, fastmath = True)
+def all_interactions_pred(r_i, positions):
+    """
+    just returns indices
+    """
+    n = len(positions)
+    ag_indices = np.array([i for i in range(n)])
+    return ag_indices
+
+
+@jit(nopython = True, fastmath = True)
+def nnn_interactions(r_i, positions, N_nearest = 8):
+    """
+    i : agent
+    j : agents including agent
+    """
+    n = len(positions) - 1
+    ag_indices = np.array([i for i in range(n+1) if (positions[i] != r_i).all()])
+    if N_nearest < n+2:
+        D = np.zeros(n)
+        for j in range(n):
+            r = np.abs(r_i - positions[j])
+            D[j] = 0.96*max(r) + 0.4*min(r) #faster approximation of distance (4% Error)
+        Idx = np.argsort(D)[:N_nearest]
+        indices = np.array([ag_indices[i] for i in Idx])
+    else:
+        indices = ag_indices
+    return indices
+
+def range_interactions():
+    pass
+
+def voronoi_interactions():
+    pass
+
 
 def interaction_indices_con(agent, agents, type = "nnn", N_nearest = 5, ran = 50, voronoi_object = 0):
     """
@@ -119,7 +165,6 @@ def interaction_indices_con(agent, agents, type = "nnn", N_nearest = 5, ran = 50
                     if not set(agent_vertices).isdisjoint(vertices_i):
                         Idx.append(i)
         indices = [ag_indices[i] for i in Idx]
-
     return indices
 
 def interaction_indices_pred(agent, preys, preds, type = "nnn", N_nearest = 5, ran = 50):
@@ -153,46 +198,46 @@ def interaction_indices_pred(agent, preys, preds, type = "nnn", N_nearest = 5, r
 
     return indices
 
-def preyprey_force(agent, preys, interaction_type = "voronoi", ran = 70, voronoi_object = 0):
+@jit(nopython = True, fastmath = True)
+def preyprey_force(r_i, phi_i, positions, phis, mu_con, a_con, r_con):
     """
     forces of prey on prey
     """
-    #with which conspecifics does the agent interact
-    interactions = interaction_indices_con(agent, preys, type = interaction_type, ran = ran, voronoi_object=voronoi_object)
-    
     #set up forces
     F_att = np.array([0.,0.])
     F_rep = np.array([0.,0.])
     F_alg = np.array([0.,0.])
 
-    for j in interactions:
+    for j in range(len(phis)):
         #vectors between agents
-        r_ij = preys[j].position - agent.position
-        v_ij = np.array([np.cos(preys[j].phi), np.sin(preys[j].phi)]) - np.array([np.cos(agent.phi), np.sin(agent.phi)])
+        r_j = positions[j]
+        phi_j = phis[j]
+        r_ij = r_j - r_i
+        v_ij = np.array([np.cos(phi_j), np.sin(phi_j)]) - np.array([np.cos(phi_i), np.sin(phi_i)])
         dis = length(r_ij)
 
         #calc forces
-        F_att += agent.mu_con[0] * sigmoid(agent.a_con[0], dis, agent.r_con[0]) * r_ij/dis
-        F_rep -= agent.mu_con[1] * sigmoid(agent.a_con[1], dis, agent.r_con[1]) * r_ij/dis
-        F_alg += agent.mu_con[2] * sigmoid(agent.a_con[2], dis, agent.r_con[2]) * v_ij
+        F_att += mu_con[0] * sigmoid(a_con[0], dis, r_con[0]) * r_ij/dis
+        F_rep -= mu_con[1] * sigmoid(a_con[1], dis, r_con[1]) * r_ij/dis
+        F_alg += mu_con[2] * sigmoid(a_con[2], dis, r_con[2]) * v_ij
     
     F_i = F_att + F_rep + F_alg
 
     return F_i
 
-def predprey_force(agent, preys, preds, interaction_type = "range"):
+@jit(nopython = True, fastmath = True)
+def predprey_force(r_i, phi_i, pred_positions, pred_phis, mu_pred, a_pred, r_pred):
     """
     forces of pred on prey
     """
-    interactions = interaction_indices_pred(agent, preys,  preds, type = interaction_type)
     F_att = np.array([0.,0.])
     F_rep = np.array([0.,0.])
 
-    if len(interactions) > 0:
-        agent.mark_for_interaction(True)
-        for j in interactions:
+    if len(pred_phis) > 0:
+        """
+        for j in range(len(pred_phis)):
             #vectors between head and tail and agent
-            r_head = preds[j].position - agent.position
+            r_head = pred_positions[j] - r_i
             r_tail = preds[j].tail_position - agent.position
             dis_head = length(r_head)
             dis_tail = length(r_tail)
@@ -200,8 +245,10 @@ def predprey_force(agent, preys, preds, interaction_type = "range"):
             #calcforces
             F_rep -= agent.mu_pred[0] * sigmoid(agent.a_pred[0], dis_head, agent.r_pred[0]) * r_head/dis_head
             F_att += agent.mu_pred[1] * sigmoid(agent.a_pred[1], dis_tail, agent.r_pred[1]) * r_tail/dis_tail
+        """
+        pass
     else:
-        agent.mark_for_interaction(False)
+        pass
 
     F_i = F_att + F_rep
     return F_i
@@ -234,20 +281,21 @@ def preypred_force(agent, preys, angle = 0):
 def predpred_force(agent, preds):
     return np.array([0,0])
 
-def move_prey(agent,t_step, force):
-    v_i = np.array([np.cos(agent.phi), np.sin(agent.phi)])
-    u_i = np.array([-np.sin(agent.phi), np.cos(agent.phi)])
+@jit(nopython = True, fastmath = True)
+def move_prey(force, t_step, position, phi, s, alpha, s0, sigma):
+    v_i = np.array([np.cos(phi), np.sin(phi)])
+    u_i = np.array([-np.sin(phi), np.cos(phi)])
     F_phi = np.dot(force, u_i)
     F_vel = np.dot(force, v_i)
     dphi = t_step * F_phi
     phi_between = angle_between(force, v_i)
     if np.absolute(dphi) > np.absolute(phi_between):
         dphi = phi_between
-    ds = t_step * F_vel + agent.alpha*(agent.s0 - agent.s)
+    ds = t_step * F_vel + alpha*(s0 - s)
 
-    new_phi = agent.phi + dphi + agent.sigma*np.sqrt(t_step)*normal()
-    new_s = agent.s + ds + agent.sigma*np.sqrt(t_step)*normal()
-    new_r = agent.position + t_step * new_s * np.array([np.cos(new_phi),np.sin(new_phi)])
+    new_phi = phi + dphi + sigma*np.sqrt(t_step)*normal()
+    new_s = s + ds + sigma*np.sqrt(t_step)*normal()
+    new_r = position + t_step * new_s * np.array([np.cos(new_phi),np.sin(new_phi)])
     return new_r, new_phi, new_s
 
 def move_pred(agent, t_step, force):
