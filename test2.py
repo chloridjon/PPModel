@@ -5,7 +5,7 @@ m = reload(m)
 import matplotlib.pyplot as plt
 import time
 
-n_prey = 50
+n_prey = 20
 n_pred = 1
 r_max = 5*n_prey
 pred_start = 4*r_max
