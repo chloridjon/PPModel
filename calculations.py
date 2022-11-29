@@ -298,6 +298,7 @@ def move_prey(force, t_step, position, phi, s, alpha, s0, sigma):
     new_r = position + t_step * new_s * np.array([np.cos(new_phi),np.sin(new_phi)])
     return new_r, new_phi, new_s
 
+@jit(nopython = True, fastmath = True)
 def move_pred(agent, t_step, force):
     u_i = np.array([-np.sin(agent.phi), np.cos(agent.phi)])
     F_phi = np.dot(force, u_i)
