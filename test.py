@@ -30,10 +30,11 @@ for _ in range(N):
             phis = np.zeros(n_prey)
             s = np.full(n_prey, 5)
             mus = [0.2,5, mu]
+            r_pred = np.array([-150., 0.])
 
             M = m.model()
             M.add_agents(n = n_prey, r = r_prey, phi = phis, s = s, interaction_con = "nnn", mu_con = mus)
-            M.add_agents(type = "pred", r = [-150,0], s = 12, attack_angle = angle)
+            M.add_agents(type = "pred", r = r_pred, s = 12, attack_angle = angle)
             ts = M.create_timeseries(20)
             P[mu_count, angle_count] += ts.polarization()/N
             angle_count += 1

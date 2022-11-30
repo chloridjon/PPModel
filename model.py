@@ -133,10 +133,10 @@ class model():
         """
         prey_positions = np.array([self.prey[i].position for i in range(self.n_prey)])
         prey_phis = np.array([self.prey[i].phi for i in range(self.n_prey)])
-        pred_positions = np.array([self.prey[i].position for i in range(self.n_pred)])
-        pred_phis = np.array([self.prey[i].phi for i in range(self.n_pred)])
+        pred_positions = np.array([self.pred[i].position for i in range(self.n_pred)])
+        tail_positions = np.array([self.pred[i].tail_position for i in range(self.n_pred)])
         for ag in self.agents:
-            ag.move(prey_positions, prey_phis, pred_positions, pred_phis, t_step)
+            ag.move(prey_positions, prey_phis, pred_positions, tail_positions, t_step)
         self.update_agents()
 
     def create_timeseries(self, time, t_step = 0.01):
@@ -264,18 +264,18 @@ class prey(agent):
             self.a_pred =  np.array(a_pred)
         self.r_pred =  np.array(r_pred)
         if interaction_pred == "all":
-            self.int_function_pred = calc.all_interactions_pred
+            self.int_function_pred = calc.all_interactions
         elif interaction_pred == "nnn":
-            self.int_function_pred = calc.nnn_interactions_pred
+            self.int_function_pred = calc.nnn_interactions
             self.n_nearest_pred = n_nearest_pred
-        elif interaction_con == "range":
-            self.int_function_pred = calc.range_interactions_pred
+        elif interaction_pred == "range":
+            self.int_function_pred = calc.range_interactions
             self.ran_pred = ran_pred
         elif interaction_pred == "voronoi":
-            self.int_function_pred = calc.voronoi_interactions_pred
+            self.int_function_pred = calc.voronoi_interactions
         self.pred_interaction = False 
 
-    def move(self, prey_positions, prey_phis, pred_positions, pred_phis, t_step, voronoi_object = 0):
+    def move(self, prey_positions, prey_phis, pred_positions, tail_positions, t_step):
         """
         move agent one timestep
         """
@@ -286,10 +286,9 @@ class prey(agent):
         con_force = self.con_function(self.position, self.phi, positions_con, phis_con, mu_con = self.mu_con.astype("float64"), a_con = self.a_con, r_con = self.r_con)
 
         #pred forces
-        pred_interactions = self.int_function_con(self.position, pred_positions)
+        pred_interactions = self.int_function_pred(self.position, pred_positions)
         positions_pred = np.array([pred_positions[i] for i in pred_interactions])
-        phis_pred = np.array([pred_phis[i] for i in pred_interactions])
-        pred_force = self.pred_function(self.position, self.phi, positions_pred, phis_pred, self.mu_pred.astype("float64"), self.a_pred, self.r_pred)
+        pred_force = self.pred_function(self.position, positions_pred, tail_positions, self.mu_pred.astype("float64"), self.a_pred, self.r_pred)
 
         new_r, new_phi, new_s = calc.move_prey(force = pred_force + con_force, t_step = t_step,
                                                position = self.position, phi = self.phi, s = self.s, alpha = self.alpha, s0 = self.s0, sigma = self.sigma)
@@ -326,9 +325,11 @@ class pred(agent):
         self.r_prey = r_prey
         self.attack_angle = attack_angle
 
-    def move(self, preys, preds, t_step, voronoi_object = 0):
-        force = self.prey_function(self, preys, angle = self.attack_angle) + self.con_function(self, preds)
-        new_r, new_phi, new_s = calc.move_pred(self, t_step, force)
+    def move(self, prey_positions, prey_phis, pred_positions, tail_positions, t_step):
+        prey_force = self.prey_function(self.position, prey_positions, mu_prey = self.mu_prey, angle = self.attack_angle)
+        con_force =  self.con_function(self.position, pred_positions)
+        new_r, new_phi, new_s = calc.move_pred(force = prey_force + con_force, t_step = t_step,
+                                               position = self.position, phi = self.phi, s = self.s, sigma = self.sigma)
         self.phi = new_phi
         self.s = new_s
         self.position = new_r
