@@ -5,7 +5,7 @@ m = reload(m)
 import matplotlib.pyplot as plt
 import time
 
-n_prey = 10
+n_prey = 50
 n_pred = 1
 r_max = 5*n_prey
 pred_start = 4*r_max
@@ -21,6 +21,6 @@ s = np.full(n_prey, 8)
 mus = [0.5,5,1]
 
 M = m.model()
-M.add_agents(n = n_prey, r = r_prey, phi = phis, s = s, interaction_con = "range", mu_con = mus, interaction_pred = "all")
+M.add_agents(n = n_prey, r = r_prey, phi = phis, s = s, interaction_con = "voronoi", mu_con = mus, interaction_pred = "all")
 M.add_agents(type = "pred", r = r_pred, s = 16)
 M.live_simulation(100, sub = 10)
