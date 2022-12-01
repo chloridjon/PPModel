@@ -27,6 +27,7 @@ class model():
         self.pred = []
         self.n_pred = 0
         self.n_prey = 0
+        self.voronoi = False
     
     def list_preys(self):
         self.update_agents()
@@ -87,6 +88,8 @@ class model():
                     ind = "p" + str(self.n_pred + i + 1)
                     self.agents.append(pred(index = ind, position = r[i], phi = phi[i], s = s[i], length = length[i], attack_angle = attack_angle))
         self.update_agents()
+        if interaction_con == "voronoi":
+            self.voronoi = True
 
     def kill_agents(self, indices):
         """
@@ -135,8 +138,12 @@ class model():
         prey_phis = np.array([self.prey[i].phi for i in range(self.n_prey)])
         pred_positions = np.array([self.pred[i].position for i in range(self.n_pred)])
         tail_positions = np.array([self.pred[i].tail_position for i in range(self.n_pred)])
+        if self.voronoi:
+            voronoi_regions = calc.voronoi_regions(prey_positions)
+        else:
+            voronoi_regions = 0
         for ag in self.agents:
-            ag.move(prey_positions, prey_phis, pred_positions, tail_positions, t_step)
+            ag.move(prey_positions, prey_phis, pred_positions, tail_positions, t_step, voronoi_regions)
         self.update_agents()
 
     def create_timeseries(self, time, t_step = 0.01):
@@ -275,12 +282,15 @@ class prey(agent):
             self.int_function_pred = calc.voronoi_interactions
         self.pred_interaction = False 
 
-    def move(self, prey_positions, prey_phis, pred_positions, tail_positions, t_step):
+    def move(self, prey_positions, prey_phis, pred_positions, tail_positions, t_step, voronoi_regions = 0):
         """
         move agent one timestep
         """
         #con forces
-        con_interactions = self.int_function_con(self.position, prey_positions)
+        if self.int_function_con == calc.voronoi_interactions:
+            con_interactions = self.int_function_con(self.position, prey_positions, voronoi_regions)
+        else:
+            con_interactions = self.int_function_con(self.position, prey_positions)
         positions_con = np.array([prey_positions[i] for i in con_interactions])
         phis_con = np.array([prey_phis[i] for i in con_interactions])
         con_force = self.con_function(self.position, self.phi, positions_con, phis_con, mu_con = self.mu_con.astype("float64"), a_con = self.a_con, r_con = self.r_con)
@@ -325,7 +335,7 @@ class pred(agent):
         self.r_prey = r_prey
         self.attack_angle = attack_angle
 
-    def move(self, prey_positions, prey_phis, pred_positions, tail_positions, t_step):
+    def move(self, prey_positions, prey_phis, pred_positions, tail_positions, t_step, voronoi_regions = 0):
         prey_force = self.prey_function(self.position, prey_positions, mu_prey = self.mu_prey, angle = self.attack_angle)
         con_force =  self.con_function(self.position, pred_positions)
         new_r, new_phi, new_s = calc.move_pred(force = prey_force + con_force, t_step = t_step,

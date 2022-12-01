@@ -1,9 +1,36 @@
 import numpy as np
 import pandas as pd
-from scipy.spatial import Voronoi
+from scipy.spatial import Voronoi, voronoi_plot_2d
 from numba import jit
 from numpy.random import normal
 import time
+import matplotlib.pyplot as plt
+
+"""
+    elif type == "voronoi":
+        Idx = []
+        if voronoi_object == 0:
+            P = np.zeros((n+1, 2))
+            for i in range(n+1):
+                P[i] = np.array(agents[i].position)
+            V = Voronoi(P)
+            agent_vertices = V.regions[V.point_region[ag_index]]
+            for i in range(n):
+                if i != ag_index:
+                    vertices_i = V.regions[V.point_region[i]]
+                    if not set(agent_vertices).isdisjoint(vertices_i):
+                        Idx.append(i)
+        else:
+            V = voronoi_object
+            agent_vertices = V.regions[V.point_region[ag_index]]
+            for i in range(n):
+                if i != ag_index:
+                    vertices_i = V.regions[V.point_region[i]]
+                    if not set(agent_vertices).isdisjoint(vertices_i):
+                        Idx.append(i)
+        indices = [ag_indices[i] for i in Idx]
+"""
+
 
 def mov_avg(array, interval_size = 50):
     sma = pd.Series(array).rolling(interval_size).sum()/interval_size
@@ -112,8 +139,27 @@ def range_interactions(r_i, positions, ran = 50):
     indices = [ag_indices[i] for i in Idx]
     return indices 
 
-def voronoi_interactions():
-    pass
+def voronoi_regions(positions):
+    V = Voronoi(positions)
+    indices = V.point_region
+    regions = V.regions
+    point_regions = [regions[i] for i in indices]
+    return point_regions
+
+def voronoi_adj(point_regions, ag_index):
+    ag_vertices = point_regions[ag_index]
+    indices = [i for i in range(len(point_regions)) if (not set(point_regions[i]).isdisjoint(ag_vertices) and i != ag_index)]
+    return indices
+
+def voronoi_interactions(r_i, positions, voronoi_regions):
+    if type(voronoi_regions) == "int":
+        point_regions = voronoi_regions(positions)
+    else:
+        point_regions = voronoi_regions
+    ag_index = np.where(positions == r_i)[0][0]
+    indices = voronoi_adj(point_regions, ag_index)
+    return indices
+
 
 
 def interaction_indices_con(agent, agents, type = "nnn", N_nearest = 5, ran = 50, voronoi_object = 0):
