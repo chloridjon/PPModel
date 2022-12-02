@@ -160,100 +160,33 @@ def voronoi_interactions(r_i, positions, voronoi_regions):
     indices = voronoi_adj(point_regions, ag_index)
     return indices
 
-
-
-def interaction_indices_con(agent, agents, type = "nnn", N_nearest = 5, ran = 50, voronoi_object = 0):
+@jit(nopython = True, fastmath = True)
+def all_interactions_pred(r_i, pred_positions, tail_positions):
     """
-    agent : agent for which interactions are determinded
-    agents : all agents of the model
-    type : type of interaction selection
-    (all, nnn (n-nearest-neighbors), range, voronoi)
-
+    just returns indices
     """
-    n = len(agents) - 1
-    ag_indices = np.array([i for i in range(n+1) if agents[i].index != agent.index])
-    for i in range(len(agents)):
-        if agent.index == agents[i].index:
-            ag_index = i
+    n = len(pred_positions)
+    pred_indices = np.array([i for i in range(n)])
+    return pred_indices
 
-    if type == "all":
-        indices = ag_indices
-    elif type == "nnn":
-        if N_nearest < n+1:
-            r_i = agent.position
-            D = np.zeros(n)
-            for i in range(n):
-                r = np.abs(r_i - agents[i].position)
-                D[i] = 0.96*max(r) + 0.4*min(r) #faster approximation of distance (4% Error)
-            Idx = np.argsort(D)[:N_nearest]
-            indices = [ag_indices[i] for i in Idx]
-        else:
-            indices = ag_indices
-
-    elif type == "range":
-        r_i = agent.position
-        D = np.zeros(n)
-        counter = 0
-        for i in range(n):
-            r = np.abs(r_i - agents[i].position)
-            D[i] = 0.96*max(r) + 0.4*min(r) #faster approximation of distance (4% Error)
-            if D[i] > ran:
-                D[i] = 0
-                counter += 1
-        Idx = np.argsort(D)[counter:]
-        indices = [ag_indices[i] for i in Idx]
-    elif type == "voronoi":
-        Idx = []
-        if voronoi_object == 0:
-            P = np.zeros((n+1, 2))
-            for i in range(n+1):
-                P[i] = np.array(agents[i].position)
-            V = Voronoi(P)
-            agent_vertices = V.regions[V.point_region[ag_index]]
-            for i in range(n):
-                if i != ag_index:
-                    vertices_i = V.regions[V.point_region[i]]
-                    if not set(agent_vertices).isdisjoint(vertices_i):
-                        Idx.append(i)
-        else:
-            V = voronoi_object
-            agent_vertices = V.regions[V.point_region[ag_index]]
-            for i in range(n):
-                if i != ag_index:
-                    vertices_i = V.regions[V.point_region[i]]
-                    if not set(agent_vertices).isdisjoint(vertices_i):
-                        Idx.append(i)
-        indices = [ag_indices[i] for i in Idx]
-    return indices
-
-def interaction_indices_pred(agent, preys, preds, type = "nnn", N_nearest = 5, ran = 50):
-    """
-    agent : agent for which interactions are determinded
-    agents : all agents of the model
-    type : type of interaction selection
-    (all, nnn (n-nearest-neighbors), range, voronoi)
-
-    """
-    n = len(preds)
+@jit(nopython = True, fastmath = True)
+def range_interactions_pred(r_i, pred_positions, tail_positions, ran = 50):
+    n = len(pred_positions)
     pred_indices = np.array([i for i in range(n)])
 
-    if type == "all":
-        indices = pred_indices
-    elif type == "range":
-        r_i = agent.position
-        D = np.zeros(n)
-        D_tail = np.zeros(n)
-        counter = 0
-        for i in range(n):
-            r_head = np.abs(r_i - preds[i].position)
-            r_tail = np.abs(r_i - preds[i].tail_position)
-            D[i] = 0.96*max(r_head) + 0.4*min(r_head) #faster approximation of distance (4% Error)
-            D_tail[i] = 0.96*max(r_tail) + 0.4*min(r_tail)
-            if D[i] > 50 and D_tail[i] > 70:
-                D[i] = 0
-                counter += 1
-        Idx = np.argsort(D)[counter:]
-        indices = [pred_indices[i] for i in Idx]
+    D = np.zeros(n)
+    D_tail = np.zeros(n)
+    counter = 0
+    for i in range(n):
+        r_head = np.abs(r_i - pred_positions[i])
+        r_tail = np.abs(r_i - tail_positions[i])
+        D[i] = 0.96*max(r_head) + 0.4*min(r_head) #faster approximation of distance (4% Error)
+        D_tail[i] = 0.96*max(r_tail) + 0.4*min(r_tail)
+        if D[i] > 50 and D_tail[i] > 70:
+            D[i] = 0
+            counter += 1
+    Idx = np.argsort(D)[counter:]
+    indices = [pred_indices[i] for i in Idx]
 
     return indices
 

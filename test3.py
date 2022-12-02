@@ -6,10 +6,24 @@ import matplotlib.pyplot as plt
 import time
 import calculations as calc
 
+n_prey = 10
+n_pred = 1
+r_max = 5*n_prey
+pred_start = 4*r_max
 
-points = np.array([
-    (2.5, 2.5), (4, 7.5), (7.5, 2.5), (6, 7.5), (4, 4), (3, 3), (6, 3)
-])
+x = [np.random.uniform(-r_max,r_max,n_prey)]
+y = [np.random.uniform(-r_max,r_max,n_prey)] 
+r_prey = np.concatenate([x,y], axis = 0)
+r_prey = np.transpose(r_prey, axes = (1,0))
+r_pred = np.array([-pred_start,0])
+#other initials
+phis = np.zeros(n_prey)
+s = np.full(n_prey, 8)
+mus = [0.5,5,1]
 
-V = calc.voronoi_regions(points)
-print(calc.voronoi_adj(V, 0))
+M = m.model()
+M.add_agents(n = n_prey, r = r_prey, phi = phis, s = s, interaction_con = "voronoi", mu_con = mus, interaction_pred = "range")
+M.add_agents(type = "pred", r = r_pred, s = 16)
+
+ts = M.create_timeseries(20)
+ts.fast_animation(path = "fountain_N10.mp4")

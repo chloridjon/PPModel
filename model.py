@@ -271,12 +271,12 @@ class prey(agent):
             self.a_pred =  np.array(a_pred)
         self.r_pred =  np.array(r_pred)
         if interaction_pred == "all":
-            self.int_function_pred = calc.all_interactions
+            self.int_function_pred = calc.all_interactions_pred
         elif interaction_pred == "nnn":
             self.int_function_pred = calc.nnn_interactions
             self.n_nearest_pred = n_nearest_pred
         elif interaction_pred == "range":
-            self.int_function_pred = calc.range_interactions
+            self.int_function_pred = calc.range_interactions_pred
             self.ran_pred = ran_pred
         elif interaction_pred == "voronoi":
             self.int_function_pred = calc.voronoi_interactions
@@ -296,7 +296,11 @@ class prey(agent):
         con_force = self.con_function(self.position, self.phi, positions_con, phis_con, mu_con = self.mu_con.astype("float64"), a_con = self.a_con, r_con = self.r_con)
 
         #pred forces
-        pred_interactions = self.int_function_pred(self.position, pred_positions)
+        pred_interactions = self.int_function_pred(self.position, pred_positions, tail_positions)
+        if len(pred_interactions) > 0:
+            self.mark_for_interaction(True)
+        else:
+            self.mark_for_interaction(False)
         positions_pred = np.array([pred_positions[i] for i in pred_interactions])
         pred_force = self.pred_function(self.position, positions_pred, tail_positions, self.mu_pred.astype("float64"), self.a_pred, self.r_pred)
 
