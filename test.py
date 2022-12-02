@@ -5,7 +5,7 @@ m = reload(m)
 import matplotlib.pyplot as plt
 import time
 
-N = 10
+N = 50
 mu_range = np.linspace(0,2,5)
 attack_angles = np.linspace(0,np.pi/18,5)
 n_prey = 10
@@ -33,9 +33,9 @@ for _ in range(N):
             r_pred = np.array([-150., 0.])
 
             M = m.model()
-            M.add_agents(n = n_prey, r = r_prey, phi = phis, s = s, interaction_con = "nnn", mu_con = mus)
+            M.add_agents(n = n_prey, r = r_prey, phi = phis, s = s, interaction_con = "voronoi", mu_con = mus)
             M.add_agents(type = "pred", r = r_pred, s = 12, attack_angle = angle)
-            ts = M.create_timeseries(20)
+            ts = M.create_timeseries(5)
             P[mu_count, angle_count] += ts.polarization()/N
             angle_count += 1
         mu_count += 1
